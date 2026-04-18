@@ -1,0 +1,413 @@
+{
+  "name": "BODDY: File \u2192 Business Profile \u2192 ClickUp",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Agreement",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Document Upload",
+              "fieldType": "file"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [5264, 1104],
+      "id": "09804835-0ec7-41db-9137-6b9d790839f0",
+      "name": "On form submission",
+      "webhookId": "549c3fe4-228e-419e-a308-6fe2d7f53fa2"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "labelIds": ["Label_3504156866751829338"]
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [5264, 1296],
+      "id": "ddcb9deb-7743-4057-980b-2ba9a1ad400e",
+      "name": "Gmail Trigger (.FIT)",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "ozIMQGzxIxG1ZtXi",
+          "name": "Partnerships .FIT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "labelIds": ["Label_2860805429641433730"]
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [5264, 1488],
+      "id": "5f2707b2-9cbf-4797-b62a-06c7c46fc431",
+      "name": "Gmail Trigger (Partnerships)",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "oak0q0gYGCGBSIaN",
+          "name": "Partnerships Email account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Emit one output item per PDF attachment.\n// - Skips items with no binary data.\n// - Skips non-PDF binaries.\n// - Preserves pairedItem so downstream nodes can still use $().item.\n// - Canonicalises the binary key to 'data'.\n\nconst inputs = $input.all();\nconst out = [];\n\nfor (let i = 0; i < inputs.length; i++) {\n  const item = inputs[i];\n  if (!item.binary) continue;\n\n  for (const key of Object.keys(item.binary)) {\n    const b = item.binary[key];\n    if (!b || b.mimeType !== 'application/pdf') continue;\n\n    out.push({\n      json: { ...item.json, _sourceFileName: b.fileName || key },\n      binary: { data: { ...b } },\n      pairedItem: { item: i }\n    });\n  }\n}\n\nreturn out;"
+      },
+      "id": "f2f8ac3e-18d5-4168-a1a6-b99f3f2bd494",
+      "name": "Split PDFs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [5488, 1296]
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "modelId": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20251001",
+          "mode": "list",
+          "cachedResultName": "claude-haiku-4-5-20251001"
+        },
+        "text": "You are an analyst at BODDY, a Swiss B2B fitness equipment distributor.\n\nExtract structured information from the uploaded document. Return ONLY a valid JSON object \u2014 no markdown, no code fences, no prose.\n\nRules:\n- Use null for unknown scalars.\n- Use [] for unknown arrays.\n- Do not invent facts. Only use information present in the document.\n- Exact field names and order as below.\n\n{\n  \"business_name\": \"string \u2014 legal or trading name\",\n  \"description\": \"string \u2014 2-3 factual sentences: what they do, who they serve, what is distinctive\",\n  \"website\": \"string \u2014 URL if present\",\n  \"instagram\": \"string \u2014 Instagram handle or URL if present, else null\",\n  \"contact_name\": \"string\",\n  \"contact_role\": \"string \u2014 job title\",\n  \"contact_email\": \"string\",\n  \"contact_phone\": \"string\",\n  \"location_city\": \"string\",\n  \"location_country\": \"string\",\n  \"business_type\": \"string \u2014 e.g. commercial gym, hotel fitness centre, CrossFit box, corporate wellness, rehabilitation centre, boutique studio\",\n  \"pricing_details\": [\"string \u2014 each specific price, rate, or tier mentioned\"],\n  \"contract_type\": \"string \u2014 e.g. partnership agreement, distribution agreement, supply contract, or null if not a contract\"\n}",
+        "inputType": "binary",
+        "options": {
+          "maxTokens": 2048
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
+      "typeVersion": 1,
+      "position": [5712, 1296],
+      "id": "0d9265f0-fc7e-4a07-8b75-6efec441eca5",
+      "name": "Extract Fields (Claude)",
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "anthropicApi": {
+          "id": "lkgqqqKZeEzD1CcW",
+          "name": "AM Anthropic"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Claude's JSON response into structured fields.\n// Tolerant of code fences and surrounding prose. On failure, emits a\n// record with _parseFailed=true so the final task is still created and\n// flagged for Arin.\n\nconst item = $input.first();\nconst raw = item.json && item.json.text ? item.json.text : '';\nconst sourceFileName = item.json && item.json._sourceFileName;\n\nconst blank = {\n  business_name: null,\n  description: null,\n  website: null,\n  instagram: null,\n  contact_name: null,\n  contact_role: null,\n  contact_email: null,\n  contact_phone: null,\n  location_city: null,\n  location_country: null,\n  business_type: null,\n  pricing_details: [],\n  contract_type: null\n};\n\nlet parsed = null;\nlet parseFailed = false;\n\ntry {\n  const match = String(raw).match(/\\{[\\s\\S]*\\}/);\n  if (!match) throw new Error('No JSON object found in Claude response');\n  parsed = JSON.parse(match[0]);\n} catch (e) {\n  parseFailed = true;\n  parsed = {};\n}\n\nreturn [{\n  json: {\n    ...blank,\n    ...parsed,\n    _sourceFileName: sourceFileName || null,\n    _parseFailed: parseFailed,\n    _rawClaudeText: parseFailed ? raw : undefined\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [5936, 1296],
+      "id": "9534ef6d-8cba-491f-a66a-df42bf511fce",
+      "name": "Parse Extraction JSON"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize website URL: add https:// if missing, null out empties.\nconst items = $input.all();\nreturn items.map(item => {\n  const json = { ...item.json };\n  let w = json.website;\n  if (typeof w === 'string') w = w.trim();\n  if (!w) {\n    json.website = null;\n  } else if (!/^https?:\\/\\//i.test(w)) {\n    json.website = 'https://' + w;\n  } else {\n    json.website = w;\n  }\n  return { json };\n});"
+      },
+      "id": "16ce1f84-7e31-461f-bff3-d31ee4a93ce2",
+      "name": "Normalize Website URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [6160, 1296]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-website",
+              "leftValue": "={{ $json.website || '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1f5b3d4-1111-4a11-8a11-1111111111a1",
+      "name": "Has Website?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [6384, 1296]
+    },
+    {
+      "parameters": {
+        "url": "https://serpapi.com/search.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "engine",
+              "value": "google"
+            },
+            {
+              "name": "q",
+              "value": "=site:instagram.com \"{{ $json.business_name || '' }}\" {{ $json.location_city || '' }} {{ $json.location_country || '' }}"
+            },
+            {
+              "name": "num",
+              "value": "5"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "b2f6c4e5-2222-4b22-9b22-2222222222b2",
+      "name": "SerpAPI Instagram Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [6608, 1408],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "REPLACE_WITH_SERPAPI_CRED_ID",
+          "name": "SerpAPI Query Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pull the first instagram.com result out of SerpAPI's response and\n// attach it to the original business profile as `instagram`.\n// The original profile fields were carried through on $json (SerpAPI\n// HTTP node returns body at top level; original fields remain on\n// paired item — we re-read them via $('Normalize Website URL').item).\n\nconst profile = $('Normalize Website URL').item.json;\nconst body = $json || {};\nconst results = Array.isArray(body.organic_results) ? body.organic_results : [];\n\nlet igUrl = null;\nfor (const r of results) {\n  const link = r && r.link;\n  if (typeof link === 'string' && /^https?:\\/\\/(www\\.)?instagram\\.com\\//i.test(link)) {\n    igUrl = link.split('?')[0];\n    break;\n  }\n}\n\nreturn [{\n  json: {\n    ...profile,\n    instagram: igUrl || profile.instagram || null\n  }\n}];"
+      },
+      "id": "c3f7d5f6-3333-4c33-ac33-3333333333c3",
+      "name": "Extract Instagram URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [6832, 1408]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge both branches of Has Website? and decide which URL to fetch.\n// Preference: website first, then instagram, else null.\n\nconst items = $input.all();\nreturn items.map(item => {\n  const json = { ...item.json };\n  const resolved = json.website || json.instagram || null;\n  json._resolvedUrl = resolved;\n  return { json };\n});"
+      },
+      "id": "d4f8e6f7-4444-4d44-bd44-4444444444d4",
+      "name": "Resolve URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [7056, 1296]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json._resolvedUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (compatible; BODDY-Intake/1.0; +https://boddy.tech)"
+            },
+            {
+              "name": "Accept",
+              "value": "text/html,application/xhtml+xml"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "27789600-84e2-4571-954b-57334e502611",
+      "name": "Fetch URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [7280, 1296],
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Strip HTML to text and truncate before classification.\n// Keeps the profile fields from Resolve URL and attaches _pageText.\n\nconst profile = $('Resolve URL').item.json;\nconst body = $json && typeof $json.data === 'string' ? $json.data : (typeof $json === 'string' ? $json : (typeof $json.body === 'string' ? $json.body : ''));\n\nlet text = '';\nif (body) {\n  text = String(body)\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/&nbsp;/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n  if (text.length > 20000) text = text.slice(0, 20000);\n}\n\nreturn [{\n  json: {\n    ...profile,\n    _pageText: text,\n    _fetchEmpty: !text\n  }\n}];"
+      },
+      "id": "e5f9f7f8-5555-4e55-be55-5555555555e5",
+      "name": "Strip HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [7504, 1296]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'claude-haiku-4-5-20251001',\n  max_tokens: 512,\n  messages: [\n    {\n      role: 'user',\n      content: `You are classifying a fitness/wellness venue from its website content.\\n\\nReturn ONLY a valid JSON object with exactly two keys: \"facilities\" and \"amenities\". No markdown, no code fences, no prose.\\n\\nFacilities \u2014 pick ONLY from this exact list (exact spelling, include any that clearly apply):\\n[\"Changing Room\",\"Free Weights Area\",\"Cardiovascular Area\",\"Resistance Machines\",\"Studio Room\",\"Personal Trainers\",\"BODITRAX\",\"Physiotherapy\",\"Indoor Pool\",\"Outdoor Pool\",\"Children\\'s Pool\",\"Spa\",\"Sauna\",\"Steam Room\",\"Beauty Spa\",\"Tennis Court\",\"Squash Court\",\"Golf\",\"Hydrotherapy Pool\",\"Child Care/ Creche\",\"Meeting Room\",\"Business Lounge\",\"Adult Only Area\",\"Caf\u00e9\",\"Snack Bar\",\"Restaurant\",\"Bike Storage\",\"Cardio\",\"Functional Area\",\"Machines\",\"Free Weights\",\"Yoga\",\"Spinning\",\"Pool\",\"Boxing\",\"Bike Fit\",\"Squash\",\"Resistance Exercises\",\"Crossfit\",\"Tennis\",\"Basketball\",\"Pilates\",\"Personal Trainer\",\"Climbing\",\"TRX\",\"Padel\"]\\n\\nAmenities \u2014 pick ONLY from this exact list:\\n[\"Lockers\",\"Changing Room\",\"Classes\",\"Air Conditioning\",\"Shower\",\"Massage\",\"Personal Trainer\",\"Sauna\",\"Tanning\",\"Lounge\",\"Spa\",\"Towel Service\",\"Women Only\",\"Babysitting\",\"Towels\",\"Parking\",\"Wi-Fi\",\"Retail Outlet\",\"Hairdryers\"]\\n\\nIf the content is empty or unusable, return {\"facilities\": [], \"amenities\": []}.\\n\\nOutput exactly: {\"facilities\": [\"...\"], \"amenities\": [\"...\"]}\\n\\nContent:\\n` + ($json._pageText || '')\n    }\n  ]\n}) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [7728, 1296],
+      "id": "f6fa08f9-6666-4f66-8f66-6666666666f6",
+      "name": "Classify Facilities & Amenities",
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "anthropicApi": {
+          "id": "lkgqqqKZeEzD1CcW",
+          "name": "AM Anthropic"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the Anthropic Messages API response, merge with the profile\n// from Strip HTML, compute needs_review, and build the ClickUp task\n// name + markdown description. Robust to upstream failures \u2014 on any\n// parsing error, falls back to empty arrays and flags for Arin.\n\nconst profile = $('Strip HTML').item.json;\nconst current = $json || {};\n\n// Anthropic /v1/messages response shape: { content: [ { type: 'text', text: '...' } ], ... }\nlet raw = '';\nif (Array.isArray(current.content)) {\n  const textBlock = current.content.find(c => c && c.type === 'text');\n  if (textBlock && typeof textBlock.text === 'string') raw = textBlock.text;\n} else if (typeof current.text === 'string') {\n  raw = current.text;\n}\n\nlet classified = { facilities: [], amenities: [] };\ntry {\n  const m = String(raw).match(/\\{[\\s\\S]*\\}/);\n  if (m) {\n    const parsed = JSON.parse(m[0]);\n    if (Array.isArray(parsed.facilities)) classified.facilities = parsed.facilities;\n    if (Array.isArray(parsed.amenities)) classified.amenities = parsed.amenities;\n  }\n} catch (e) {\n  // swallow \u2014 empty arrays + needs_review will flag it\n}\n\nconst needsReview = Boolean(\n  profile._parseFailed ||\n  (!profile.website && !profile.instagram) ||\n  profile._fetchEmpty ||\n  (classified.facilities.length === 0 && classified.amenities.length === 0)\n);\n\nconst fmt = v => (v === null || v === undefined || v === '') ? '\u2014' : v;\nconst fmtList = a => (Array.isArray(a) && a.length) ? a.map(x => '- ' + x).join('\\n') : '\u2014';\n\nconst reasons = [\n  profile._parseFailed && 'extraction failed',\n  (!profile.website && !profile.instagram) && 'no website or Instagram',\n  profile._fetchEmpty && 'site content empty',\n  (classified.facilities.length === 0 && classified.amenities.length === 0) && 'no facilities/amenities matched'\n].filter(Boolean);\n\nconst reviewBanner = needsReview\n  ? `> **Needs review** \u2014 arin.melvin@boddy.tech\\n> Reasons: ${reasons.join('; ')}\\n\\n`\n  : '';\n\nconst body = `${reviewBanner}## About\\n${fmt(profile.description)}\\n\\n## Contact\\n- Name: ${fmt(profile.contact_name)}\\n- Role: ${fmt(profile.contact_role)}\\n- Email: ${fmt(profile.contact_email)}\\n- Phone: ${fmt(profile.contact_phone)}\\n\\n## Location\\n${fmt(profile.location_city)}, ${fmt(profile.location_country)}\\n\\n## Business\\n- Type: ${fmt(profile.business_type)}\\n- Website: ${fmt(profile.website)}\\n- Instagram: ${fmt(profile.instagram)}\\n\\n## Facilities\\n${fmtList(classified.facilities)}\\n\\n## Amenities\\n${fmtList(classified.amenities)}\\n\\n## Pricing\\n${fmtList(profile.pricing_details)}\\n\\n## Contract\\n${fmt(profile.contract_type)}\\n\\n---\\nSource file: ${fmt(profile._sourceFileName)}`;\n\nconst name = (needsReview ? '[REVIEW \u2014 Arin] ' : '') + (profile.business_name || 'New Partner');\n\nreturn [{\n  json: {\n    task_name: name,\n    task_content: body,\n    needs_review: needsReview,\n    facilities: classified.facilities,\n    amenities: classified.amenities,\n    ...profile\n  }\n}];"
+      },
+      "id": "07fb1909-7777-4f77-af77-7777777777f7",
+      "name": "Build ClickUp Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [7952, 1296]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "team": "9012571958",
+        "space": "90122319470",
+        "folder": "90123756028",
+        "list": "901206337955",
+        "name": "={{ $json.task_name }}",
+        "additionalFields": {
+          "content": "={{ $json.task_content }}"
+        }
+      },
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [8176, 1296],
+      "id": "9f747b23-07de-4781-af3a-310e99f587aa",
+      "name": "Create ClickUp Task",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "clickUpOAuth2Api": {
+          "id": "8hd2kTv2SyZkUCKx",
+          "name": "BODDY ClickUp"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [[{ "node": "Split PDFs", "type": "main", "index": 0 }]]
+    },
+    "Gmail Trigger (.FIT)": {
+      "main": [[{ "node": "Split PDFs", "type": "main", "index": 0 }]]
+    },
+    "Gmail Trigger (Partnerships)": {
+      "main": [[{ "node": "Split PDFs", "type": "main", "index": 0 }]]
+    },
+    "Split PDFs": {
+      "main": [[{ "node": "Extract Fields (Claude)", "type": "main", "index": 0 }]]
+    },
+    "Extract Fields (Claude)": {
+      "main": [[{ "node": "Parse Extraction JSON", "type": "main", "index": 0 }]]
+    },
+    "Parse Extraction JSON": {
+      "main": [[{ "node": "Normalize Website URL", "type": "main", "index": 0 }]]
+    },
+    "Normalize Website URL": {
+      "main": [[{ "node": "Has Website?", "type": "main", "index": 0 }]]
+    },
+    "Has Website?": {
+      "main": [
+        [{ "node": "Resolve URL", "type": "main", "index": 0 }],
+        [{ "node": "SerpAPI Instagram Search", "type": "main", "index": 0 }]
+      ]
+    },
+    "SerpAPI Instagram Search": {
+      "main": [[{ "node": "Extract Instagram URL", "type": "main", "index": 0 }]]
+    },
+    "Extract Instagram URL": {
+      "main": [[{ "node": "Resolve URL", "type": "main", "index": 0 }]]
+    },
+    "Resolve URL": {
+      "main": [[{ "node": "Fetch URL", "type": "main", "index": 0 }]]
+    },
+    "Fetch URL": {
+      "main": [[{ "node": "Strip HTML", "type": "main", "index": 0 }]]
+    },
+    "Strip HTML": {
+      "main": [[{ "node": "Classify Facilities & Amenities", "type": "main", "index": 0 }]]
+    },
+    "Classify Facilities & Amenities": {
+      "main": [[{ "node": "Build ClickUp Payload", "type": "main", "index": 0 }]]
+    },
+    "Build ClickUp Payload": {
+      "main": [[{ "node": "Create ClickUp Task", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0ff7d7b1-db00-46c1-b9b5-e46eb6f852ac",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3543aa59f87e93d37a58a0ce3448f27dcb1cfad220fb80ce5180812f0788a0c4"
+  },
+  "id": "k7Kv4g9fyT6RvVGn",
+  "tags": []
+}
