@@ -1,5 +1,5 @@
 {
-  "name": "BODDY: File \u2192 Business Profile \u2192 ClickUp",
+  "name": "BODDY: File → Business Profile → ClickUp",
   "nodes": [
     {
       "parameters": {
@@ -16,7 +16,10 @@
       },
       "type": "n8n-nodes-base.formTrigger",
       "typeVersion": 2.3,
-      "position": [5264, 1104],
+      "position": [
+        5264,
+        1104
+      ],
       "id": "09804835-0ec7-41db-9137-6b9d790839f0",
       "name": "On form submission",
       "webhookId": "549c3fe4-228e-419e-a308-6fe2d7f53fa2"
@@ -32,7 +35,9 @@
         },
         "simple": false,
         "filters": {
-          "labelIds": ["Label_3504156866751829338"]
+          "labelIds": [
+            "Label_3504156866751829338"
+          ]
         },
         "options": {
           "downloadAttachments": true
@@ -40,7 +45,10 @@
       },
       "type": "n8n-nodes-base.gmailTrigger",
       "typeVersion": 1.3,
-      "position": [5264, 1296],
+      "position": [
+        5264,
+        1296
+      ],
       "id": "ddcb9deb-7743-4057-980b-2ba9a1ad400e",
       "name": "Gmail Trigger (.FIT)",
       "credentials": {
@@ -61,7 +69,9 @@
         },
         "simple": false,
         "filters": {
-          "labelIds": ["Label_2860805429641433730"]
+          "labelIds": [
+            "Label_2860805429641433730"
+          ]
         },
         "options": {
           "downloadAttachments": true
@@ -69,7 +79,10 @@
       },
       "type": "n8n-nodes-base.gmailTrigger",
       "typeVersion": 1.3,
-      "position": [5264, 1488],
+      "position": [
+        5264,
+        1488
+      ],
       "id": "5f2707b2-9cbf-4797-b62a-06c7c46fc431",
       "name": "Gmail Trigger (Partnerships)",
       "credentials": {
@@ -87,7 +100,10 @@
       "name": "Split PDFs",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [5488, 1296]
+      "position": [
+        5488,
+        1296
+      ]
     },
     {
       "parameters": {
@@ -98,7 +114,7 @@
           "mode": "list",
           "cachedResultName": "claude-haiku-4-5-20251001"
         },
-        "text": "You are an analyst at BODDY, a Swiss B2B fitness equipment distributor.\n\nExtract structured information from the uploaded document. Return ONLY a valid JSON object \u2014 no markdown, no code fences, no prose.\n\nRules:\n- Use null for unknown scalars.\n- Use [] for unknown arrays.\n- Do not invent facts. Only use information present in the document.\n- Exact field names and order as below.\n\n{\n  \"business_name\": \"string \u2014 legal or trading name\",\n  \"description\": \"string \u2014 2-3 factual sentences: what they do, who they serve, what is distinctive\",\n  \"website\": \"string \u2014 URL if present\",\n  \"instagram\": \"string \u2014 Instagram handle or URL if present, else null\",\n  \"contact_name\": \"string\",\n  \"contact_role\": \"string \u2014 job title\",\n  \"contact_email\": \"string\",\n  \"contact_phone\": \"string\",\n  \"location_city\": \"string\",\n  \"location_country\": \"string\",\n  \"business_type\": \"string \u2014 e.g. commercial gym, hotel fitness centre, CrossFit box, corporate wellness, rehabilitation centre, boutique studio\",\n  \"pricing_details\": [\"string \u2014 each specific price, rate, or tier mentioned\"],\n  \"contract_type\": \"string \u2014 e.g. partnership agreement, distribution agreement, supply contract, or null if not a contract\"\n}",
+        "text": "You are an analyst at BODDY, a Swiss B2B fitness equipment distributor.\n\nExtract structured information from the uploaded document. Return ONLY a valid JSON object — no markdown, no code fences, no prose.\n\nRules:\n- Use null for unknown scalars.\n- Use [] for unknown arrays.\n- Do not invent facts. Only use information present in the document.\n- Exact field names and order as below.\n\n{\n  \"business_name\": \"string — legal or trading name\",\n  \"description\": \"string — 2-3 factual sentences: what they do, who they serve, what is distinctive\",\n  \"website\": \"string — URL if present\",\n  \"instagram\": \"string — Instagram handle or URL if present, else null\",\n  \"contact_name\": \"string\",\n  \"contact_role\": \"string — job title\",\n  \"contact_email\": \"string\",\n  \"contact_phone\": \"string\",\n  \"location_city\": \"string\",\n  \"location_country\": \"string\",\n  \"business_type\": \"string — e.g. commercial gym, hotel fitness centre, CrossFit box, corporate wellness, rehabilitation centre, boutique studio\",\n  \"pricing_details\": [\"string — each specific price, rate, or tier mentioned\"],\n  \"contract_type\": \"string — e.g. partnership agreement, distribution agreement, supply contract, or null if not a contract\"\n}",
         "inputType": "binary",
         "options": {
           "maxTokens": 2048
@@ -106,7 +122,10 @@
       },
       "type": "@n8n/n8n-nodes-langchain.anthropic",
       "typeVersion": 1,
-      "position": [5712, 1296],
+      "position": [
+        5712,
+        1296
+      ],
       "id": "0d9265f0-fc7e-4a07-8b75-6efec441eca5",
       "name": "Extract Fields (Claude)",
       "onError": "continueRegularOutput",
@@ -123,7 +142,10 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [5936, 1296],
+      "position": [
+        5936,
+        1296
+      ],
       "id": "9534ef6d-8cba-491f-a66a-df42bf511fce",
       "name": "Parse Extraction JSON"
     },
@@ -135,7 +157,10 @@
       "name": "Normalize Website URL",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [6160, 1296]
+      "position": [
+        6160,
+        1296
+      ]
     },
     {
       "parameters": {
@@ -166,7 +191,10 @@
       "name": "Has Website?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [6384, 1296]
+      "position": [
+        6384,
+        1296
+      ]
     },
     {
       "parameters": {
@@ -198,7 +226,10 @@
       "name": "SerpAPI Instagram Search",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [6608, 1408],
+      "position": [
+        6608,
+        1408
+      ],
       "onError": "continueRegularOutput",
       "credentials": {
         "httpQueryAuth": {
@@ -215,7 +246,10 @@
       "name": "Extract Instagram URL",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [6832, 1408]
+      "position": [
+        6832,
+        1408
+      ]
     },
     {
       "parameters": {
@@ -225,17 +259,23 @@
       "name": "Resolve URL",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [7056, 1296]
+      "position": [
+        7056,
+        1296
+      ]
     },
     {
       "parameters": {
-        "jsCode": "// Crawl Website (sitemap-aware)\n//\n// Captures \u201cfull website\u201d rather than just the homepage:\n//   1. Fetches /sitemap.xml from the resolved URL's origin.\n//   2. If it's a sitemap index (all entries are other .xml files),\n//      flattens up to 2 sub-sitemaps.\n//   3. Picks the homepage + up to 5 internal pages whose path matches\n//      facility/amenity/class/service/about/pricing keywords.\n//   4. Falls back to the single resolved URL if sitemap is missing,\n//      a login wall (Instagram), or any other failure.\n//   5. Fetches all pages with a real UA + short timeout, swallowing\n//      per-page errors so one dead page doesn't kill the rest.\n//   6. Strips <script>, <style>, comments, tags, entities; normalises\n//      whitespace; concatenates; truncates at 40,000 chars.\n//\n// Emits a single item per input: profile + _pageText + _fetchEmpty\n// + _pagesFetched/_pagesAttempted for debugging.\n\nconst helpers = this.helpers;\nconst profile = $input.first().json;\nconst baseUrl = profile._resolvedUrl;\n\nconst UA = 'Mozilla/5.0 (compatible; BODDY-Intake/1.0; +https://boddy.tech)';\nconst TIMEOUT = 15000;\nconst KEYWORDS = /\\/(facilit|amenit|class|service|about|member|pricing|studio|experience|offering|wellness|fitness|train)/i;\nconst MAX_PAGES = 6;\nconst MAX_CHARS = 40000;\n\nconst emptyOut = () => [{ json: { ...profile, _pageText: '', _fetchEmpty: true, _pagesFetched: 0, _pagesAttempted: 0 } }];\n\nif (!baseUrl) return emptyOut();\n\nconst fetchText = async (url) => {\n  try {\n    const res = await helpers.httpRequest({\n      url,\n      method: 'GET',\n      timeout: TIMEOUT,\n      returnFullResponse: false,\n      headers: {\n        'User-Agent': UA,\n        'Accept': 'text/html,application/xhtml+xml,application/xml'\n      }\n    });\n    return typeof res === 'string' ? res : (res ? String(res) : '');\n  } catch (e) {\n    return '';\n  }\n};\n\nconst stripHtml = (html) => String(html || '')\n  .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n  .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n  .replace(/<!--[\\s\\S]*?-->/g, ' ')\n  .replace(/<[^>]+>/g, ' ')\n  .replace(/&nbsp;|&amp;|&quot;|&#39;|&lt;|&gt;/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\n// Discover candidate URLs from sitemap.xml\nlet pages = [baseUrl];\nlet origin = null;\ntry { origin = new URL(baseUrl).origin; } catch (e) { /* malformed url */ }\n\nif (origin && !/instagram\\.com$/i.test(new URL(baseUrl).hostname)) {\n  const sitemapText = await fetchText(origin + '/sitemap.xml');\n  if (sitemapText) {\n    let locs = Array.from(sitemapText.matchAll(/<loc>([^<]+)<\\/loc>/gi)).map(m => m[1].trim());\n\n    // Sitemap index: all entries are other .xml files\n    const allXml = locs.length > 0 && locs.every(u => /\\.xml(\\?|$)/i.test(u));\n    if (allXml) {\n      const flattened = [];\n      for (const sm of locs.slice(0, 2)) {\n        const sub = await fetchText(sm);\n        flattened.push(...Array.from(sub.matchAll(/<loc>([^<]+)<\\/loc>/gi)).map(m => m[1].trim()));\n      }\n      locs = flattened;\n    }\n\n    const relevant = locs\n      .filter(u => KEYWORDS.test(u) && u !== baseUrl)\n      .slice(0, MAX_PAGES - 1);\n    pages = [baseUrl, ...relevant];\n  }\n}\n\n// Fetch all selected pages\nconst texts = [];\nfor (const url of pages) {\n  const html = await fetchText(url);\n  const stripped = stripHtml(html);\n  if (stripped) texts.push(stripped);\n}\n\nlet combined = texts.join('\\n\\n').trim();\nif (combined.length > MAX_CHARS) combined = combined.slice(0, MAX_CHARS);\n\nreturn [{\n  json: {\n    ...profile,\n    _pageText: combined,\n    _fetchEmpty: !combined,\n    _pagesFetched: texts.length,\n    _pagesAttempted: pages.length\n  }\n}];"
+        "jsCode": "// Crawl Website (sitemap-aware)\n//\n// Captures “full website” rather than just the homepage:\n//   1. Fetches /sitemap.xml from the resolved URL's origin.\n//   2. If it's a sitemap index (all entries are other .xml files),\n//      flattens up to 2 sub-sitemaps.\n//   3. Picks the homepage + up to 5 internal pages whose path matches\n//      facility/amenity/class/service/about/pricing keywords.\n//   4. Falls back to the single resolved URL if sitemap is missing,\n//      a login wall (Instagram), or any other failure.\n//   5. Fetches all pages with a real UA + short timeout, swallowing\n//      per-page errors so one dead page doesn't kill the rest.\n//   6. Strips <script>, <style>, comments, tags, entities; normalises\n//      whitespace; concatenates; truncates at 40,000 chars.\n//\n// Emits a single item per input: profile + _pageText + _fetchEmpty\n// + _pagesFetched/_pagesAttempted for debugging.\n\nconst helpers = this.helpers;\nconst profile = $input.first().json;\nconst baseUrl = profile._resolvedUrl;\n\nconst UA = 'Mozilla/5.0 (compatible; BODDY-Intake/1.0; +https://boddy.tech)';\nconst TIMEOUT = 15000;\nconst KEYWORDS = /\\/(facilit|amenit|class|service|about|member|pricing|studio|experience|offering|wellness|fitness|train)/i;\nconst MAX_PAGES = 6;\nconst MAX_CHARS = 40000;\n\nconst emptyOut = () => [{ json: { ...profile, _pageText: '', _fetchEmpty: true, _pagesFetched: 0, _pagesAttempted: 0 } }];\n\nif (!baseUrl) return emptyOut();\n\nconst fetchText = async (url) => {\n  try {\n    const res = await helpers.httpRequest({\n      url,\n      method: 'GET',\n      timeout: TIMEOUT,\n      returnFullResponse: false,\n      headers: {\n        'User-Agent': UA,\n        'Accept': 'text/html,application/xhtml+xml,application/xml'\n      }\n    });\n    return typeof res === 'string' ? res : (res ? String(res) : '');\n  } catch (e) {\n    return '';\n  }\n};\n\nconst stripHtml = (html) => String(html || '')\n  .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n  .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n  .replace(/<!--[\\s\\S]*?-->/g, ' ')\n  .replace(/<[^>]+>/g, ' ')\n  .replace(/&nbsp;|&amp;|&quot;|&#39;|&lt;|&gt;/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\n// Discover candidate URLs from sitemap.xml\nlet pages = [baseUrl];\nlet origin = null;\ntry { origin = new URL(baseUrl).origin; } catch (e) { /* malformed url */ }\n\nif (origin && !/instagram\\.com$/i.test(new URL(baseUrl).hostname)) {\n  const sitemapText = await fetchText(origin + '/sitemap.xml');\n  if (sitemapText) {\n    let locs = Array.from(sitemapText.matchAll(/<loc>([^<]+)<\\/loc>/gi)).map(m => m[1].trim());\n\n    // Sitemap index: all entries are other .xml files\n    const allXml = locs.length > 0 && locs.every(u => /\\.xml(\\?|$)/i.test(u));\n    if (allXml) {\n      const flattened = [];\n      for (const sm of locs.slice(0, 2)) {\n        const sub = await fetchText(sm);\n        flattened.push(...Array.from(sub.matchAll(/<loc>([^<]+)<\\/loc>/gi)).map(m => m[1].trim()));\n      }\n      locs = flattened;\n    }\n\n    const relevant = locs\n      .filter(u => KEYWORDS.test(u) && u !== baseUrl)\n      .slice(0, MAX_PAGES - 1);\n    pages = [baseUrl, ...relevant];\n  }\n}\n\n// Fetch all selected pages\nconst texts = [];\nfor (const url of pages) {\n  const html = await fetchText(url);\n  const stripped = stripHtml(html);\n  if (stripped) texts.push(stripped);\n}\n\nlet combined = texts.join('\\n\\n').trim();\nif (combined.length > MAX_CHARS) combined = combined.slice(0, MAX_CHARS);\n\nreturn [{\n  json: {\n    ...profile,\n    _pageText: combined,\n    _fetchEmpty: !combined,\n    _pagesFetched: texts.length,\n    _pagesAttempted: pages.length\n  }\n}];"
       },
       "id": "e5f9f7f8-5555-4e55-be55-5555555555e5",
       "name": "Crawl Website",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [7280, 1296],
+      "position": [
+        7280,
+        1296
+      ],
       "onError": "continueRegularOutput"
     },
     {
@@ -259,14 +299,17 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  model: 'claude-haiku-4-5-20251001',\n  max_tokens: 512,\n  messages: [\n    {\n      role: 'user',\n      content: `You are classifying a fitness/wellness venue from its website content.\\n\\nReturn ONLY a valid JSON object with exactly two keys: \"facilities\" and \"amenities\". No markdown, no code fences, no prose.\\n\\nFacilities \u2014 pick ONLY from this exact list (exact spelling, include any that clearly apply):\\n[\"Changing Room\",\"Free Weights Area\",\"Cardiovascular Area\",\"Resistance Machines\",\"Studio Room\",\"Personal Trainers\",\"BODITRAX\",\"Physiotherapy\",\"Indoor Pool\",\"Outdoor Pool\",\"Children\\'s Pool\",\"Spa\",\"Sauna\",\"Steam Room\",\"Beauty Spa\",\"Tennis Court\",\"Squash Court\",\"Golf\",\"Hydrotherapy Pool\",\"Child Care/ Creche\",\"Meeting Room\",\"Business Lounge\",\"Adult Only Area\",\"Caf\u00e9\",\"Snack Bar\",\"Restaurant\",\"Bike Storage\",\"Cardio\",\"Functional Area\",\"Machines\",\"Free Weights\",\"Yoga\",\"Spinning\",\"Pool\",\"Boxing\",\"Bike Fit\",\"Squash\",\"Resistance Exercises\",\"Crossfit\",\"Tennis\",\"Basketball\",\"Pilates\",\"Personal Trainer\",\"Climbing\",\"TRX\",\"Padel\"]\\n\\nAmenities \u2014 pick ONLY from this exact list:\\n[\"Lockers\",\"Changing Room\",\"Classes\",\"Air Conditioning\",\"Shower\",\"Massage\",\"Personal Trainer\",\"Sauna\",\"Tanning\",\"Lounge\",\"Spa\",\"Towel Service\",\"Women Only\",\"Babysitting\",\"Towels\",\"Parking\",\"Wi-Fi\",\"Retail Outlet\",\"Hairdryers\"]\\n\\nIf the content is empty or unusable, return {\"facilities\": [], \"amenities\": []}.\\n\\nOutput exactly: {\"facilities\": [\"...\"], \"amenities\": [\"...\"]}\\n\\nContent:\\n` + ($json._pageText || '')\n    }\n  ]\n}) }}",
+        "jsonBody": "={{  JSON.stringify({\n  model: 'claude-haiku-4-5-20251001',\n  max_tokens: 2000,\n  messages: [\n    {\n      role: 'user',\n      content: `You are profiling a health/fitness/wellness venue from its website or Instagram content for BODDY — a platform that connects fitness and wellness venues with health-conscious travellers via online travel agencies, hotels, and booking platforms.\\n\\nReturn ONLY a valid JSON object with exactly three keys: \\\"description\\\", \\\"facilities\\\" and \\\"amenities\\\". No markdown, no code fences, no prose outside the JSON.\\n\\ndescription — A comprehensive 200–250 word profile in a neutral, informative tone for a prospective traveller or BODDY partnership manager. Cover all of the following that are evidenced in the content:\\n1. What type of venue it is and its core offering\\n2. Key activities, classes, training styles, and equipment available\\n3. The target clientele and overall atmosphere\\n4. Any notable or distinctive features (certifications, technology, specialist programmes, outdoor areas, spa, recovery facilities, pool)\\n5. Whether the venue appears international-friendly or suitable for travellers (e.g. multilingual staff, day passes, drop-in sessions)\\nGround every claim in the supplied content. Do NOT include pricing, fees, specific opening hours, phone numbers, addresses or direct contact details. Do not use marketing or hype language. If the website content is empty or sparse, use the business name and URL provided below to generate the best description you can. Never leave the description empty.\\n\\nFacilities — pick ONLY from this exact list (exact spelling, include any that clearly apply):\\n[\\\"Changing Room\\\",\\\"Free Weights Area\\\",\\\"Cardiovascular Area\\\",\\\"Resistance Machines\\\",\\\"Studio Room\\\",\\\"Personal Trainers\\\",\\\"BODITRAX\\\",\\\"Physiotherapy\\\",\\\"Indoor Pool\\\",\\\"Outdoor Pool\\\",\\\"Children\\'s Pool\\\",\\\"Spa\\\",\\\"Sauna\\\",\\\"Steam Room\\\",\\\"Beauty Spa\\\",\\\"Tennis Court\\\",\\\"Squash Court\\\",\\\"Golf\\\",\\\"Hydrotherapy Pool\\\",\\\"Child Care\\/ Creche\\\",\\\"Meeting Room\\\",\\\"Business Lounge\\\",\\\"Adult Only Area\\\",\\\"Caf\\u00e9\\\",\\\"Snack Bar\\\",\\\"Restaurant\\\",\\\"Bike Storage\\\",\\\"Cardio\\\",\\\"Functional Area\\\",\\\"Machines\\\",\\\"Free Weights\\\",\\\"Yoga\\\",\\\"Spinning\\\",\\\"Pool\\\",\\\"Boxing\\\",\\\"Bike Fit\\\",\\\"Squash\\\",\\\"Resistance Exercises\\\",\\\"Crossfit\\\",\\\"Tennis\\\",\\\"Basketball\\\",\\\"Pilates\\\",\\\"Personal Trainer\\\",\\\"Climbing\\\",\\\"TRX\\\",\\\"Padel\\\"]\\n\\nAmenities — pick ONLY from this exact list:\\n[\\\"Lockers\\\",\\\"Changing Room\\\",\\\"Classes\\\",\\\"Air Conditioning\\\",\\\"Shower\\\",\\\"Massage\\\",\\\"Personal Trainer\\\",\\\"Sauna\\\",\\\"Tanning\\\",\\\"Lounge\\\",\\\"Spa\\\",\\\"Towel Service\\\",\\\"Women Only\\\",\\\"Babysitting\\\",\\\"Towels\\\",\\\"Parking\\\",\\\"Wi-Fi\\\",\\\"Retail Outlet\\\",\\\"Hairdryers\\\"]\\n\\nIf the content is empty or unusable, still write a description based on the business name and URL provided. Never return an empty description.\\n\\nOutput exactly: {\\\"description\\\": \\\"...\\\", \\\"facilities\\\": [\\\"...\\\"], \\\"amenities\\\": [\\\"...\\\"]}\\n\\nBusiness: ` + ($json.business_name || 'Unknown') + `\\nURL: ` + ($json._resolvedUrl || $json.website || 'none') + `\\n\\nWebsite content:\\n` + ($json._pageText || '(no website content available — write description from name and URL above)')\n    }\n  ]\n}) }}",
         "options": {
           "timeout": 30000
         }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [7728, 1296],
+      "position": [
+        7728,
+        1296
+      ],
       "id": "f6fa08f9-6666-4f66-8f66-6666666666f6",
       "name": "Classify Facilities & Amenities",
       "onError": "continueRegularOutput",
@@ -279,13 +322,16 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse the Anthropic Messages API response, merge with the profile\n// from Strip HTML, compute needs_review, and build the ClickUp task\n// name + markdown description. Robust to upstream failures \u2014 on any\n// parsing error, falls back to empty arrays and flags for Arin.\n\nconst profile = $('Crawl Website').item.json;\nconst current = $json || {};\n\n// Anthropic /v1/messages response shape: { content: [ { type: 'text', text: '...' } ], ... }\nlet raw = '';\nif (Array.isArray(current.content)) {\n  const textBlock = current.content.find(c => c && c.type === 'text');\n  if (textBlock && typeof textBlock.text === 'string') raw = textBlock.text;\n} else if (typeof current.text === 'string') {\n  raw = current.text;\n}\n\nlet classified = { facilities: [], amenities: [] };\ntry {\n  const m = String(raw).match(/\\{[\\s\\S]*\\}/);\n  if (m) {\n    const parsed = JSON.parse(m[0]);\n    if (Array.isArray(parsed.facilities)) classified.facilities = parsed.facilities;\n    if (Array.isArray(parsed.amenities)) classified.amenities = parsed.amenities;\n  }\n} catch (e) {\n  // swallow \u2014 empty arrays + needs_review will flag it\n}\n\nconst needsReview = Boolean(\n  profile._parseFailed ||\n  (!profile.website && !profile.instagram) ||\n  profile._fetchEmpty ||\n  (classified.facilities.length === 0 && classified.amenities.length === 0)\n);\n\nconst fmt = v => (v === null || v === undefined || v === '') ? '\u2014' : v;\nconst fmtList = a => (Array.isArray(a) && a.length) ? a.map(x => '- ' + x).join('\\n') : '\u2014';\n\nconst reasons = [\n  profile._parseFailed && 'extraction failed',\n  (!profile.website && !profile.instagram) && 'no website or Instagram',\n  profile._fetchEmpty && 'site content empty',\n  (classified.facilities.length === 0 && classified.amenities.length === 0) && 'no facilities/amenities matched'\n].filter(Boolean);\n\nconst reviewBanner = needsReview\n  ? `> **Needs review** \u2014 arin.melvin@boddy.tech\\n> Reasons: ${reasons.join('; ')}\\n\\n`\n  : '';\n\nconst body = `${reviewBanner}## About\\n${fmt(profile.description)}\\n\\n## Contact\\n- Name: ${fmt(profile.contact_name)}\\n- Role: ${fmt(profile.contact_role)}\\n- Email: ${fmt(profile.contact_email)}\\n- Phone: ${fmt(profile.contact_phone)}\\n\\n## Location\\n${fmt(profile.location_city)}, ${fmt(profile.location_country)}\\n\\n## Business\\n- Type: ${fmt(profile.business_type)}\\n- Website: ${fmt(profile.website)}\\n- Instagram: ${fmt(profile.instagram)}\\n\\n## Facilities\\n${fmtList(classified.facilities)}\\n\\n## Amenities\\n${fmtList(classified.amenities)}\\n\\n## Pricing\\n${fmtList(profile.pricing_details)}\\n\\n## Contract\\n${fmt(profile.contract_type)}\\n\\n---\\nSource file: ${fmt(profile._sourceFileName)}`;\n\nconst name = (needsReview ? '[REVIEW \u2014 Arin] ' : '') + (profile.business_name || 'New Partner');\n\nreturn [{\n  json: {\n    task_name: name,\n    task_content: body,\n    needs_review: needsReview,\n    facilities: classified.facilities,\n    amenities: classified.amenities,\n    ...profile\n  }\n}];"
+        "jsCode": "// Parse Classify node response; extract description (always required),\n// facilities, and amenities. Merge with PDF-extracted profile from\n// Crawl Website. Description always has a value: website-derived first,\n// then PDF-extraction fallback.\n\nconst profile = $('Crawl Website').item.json;\nconst current = $json || {};\n\nlet raw = '';\nif (Array.isArray(current.content)) {\n  const textBlock = current.content.find(c => c && c.type === 'text');\n  if (textBlock && typeof textBlock.text === 'string') raw = textBlock.text;\n} else if (typeof current.text === 'string') {\n  raw = current.text;\n}\n\n// Bug fix: initialise with description field and actually read it from parsed.\nlet classified = { description: '', facilities: [], amenities: [] };\ntry {\n  const m = String(raw).match(/\\{[\\s\\S]*\\}/);\n  if (m) {\n    const parsed = JSON.parse(m[0]);\n    if (typeof parsed.description === 'string') classified.description = parsed.description.trim();\n    if (Array.isArray(parsed.facilities)) classified.facilities = parsed.facilities;\n    if (Array.isArray(parsed.amenities)) classified.amenities = parsed.amenities;\n  }\n} catch (e) { /* swallow — falls back to profile.description */ }\n\n// Website-based description first, then PDF-extracted, then empty string.\nconst finalDescription = classified.description || profile.description || '';\n\n// Only flag for manual review when extraction completely failed or we have\n// no URL at all and still no description to show.\nconst needsReview = Boolean(\n  profile._parseFailed ||\n  (!profile.website && !profile.instagram && !classified.description)\n);\n\nconst fmt = v => (v === null || v === undefined || v === '') ? '\\u2014' : v;\nconst fmtList = a => (Array.isArray(a) && a.length) ? a.map(x => '- ' + x).join('\\n') : '\\u2014';\n\nconst reasons = [\n  profile._parseFailed && 'PDF extraction failed',\n  (!profile.website && !profile.instagram && !classified.description) && 'no URL found and no description generated'\n].filter(Boolean);\n\nconst reviewBanner = needsReview\n  ? '> **Needs review** \\u2014 arin.melvin@boddy.tech\\n> Reasons: ' + reasons.join('; ') + '\\n\\n'\n  : '';\n\nconst body = reviewBanner\n  + '## About\\n' + fmt(finalDescription)\n  + '\\n\\n## Contact\\n- Name: ' + fmt(profile.contact_name)\n  + '\\n- Role: ' + fmt(profile.contact_role)\n  + '\\n- Email: ' + fmt(profile.contact_email)\n  + '\\n- Phone: ' + fmt(profile.contact_phone)\n  + '\\n\\n## Location\\n' + fmt(profile.location_city) + ', ' + fmt(profile.location_country)\n  + '\\n\\n## Business\\n- Type: ' + fmt(profile.business_type)\n  + '\\n- Website: ' + fmt(profile.website)\n  + '\\n- Instagram: ' + fmt(profile.instagram)\n  + '\\n\\n## Facilities\\n' + fmtList(classified.facilities)\n  + '\\n\\n## Amenities\\n' + fmtList(classified.amenities)\n  + '\\n\\n## Pricing\\n' + fmtList(profile.pricing_details)\n  + '\\n\\n## Contract\\n' + fmt(profile.contract_type)\n  + '\\n\\n---\\nSource file: ' + fmt(profile._sourceFileName);\n\nconst name = (needsReview ? '[REVIEW \\u2014 Arin] ' : '') + (profile.business_name || 'New Partner');\n\nreturn [{\n  json: {\n    task_name: name,\n    task_content: body,\n    needs_review: needsReview,\n    facilities: classified.facilities,\n    amenities: classified.amenities,\n    ...profile\n  }\n}];"
       },
       "id": "07fb1909-7777-4f77-af77-7777777777f7",
       "name": "Build ClickUp Payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [7952, 1296]
+      "position": [
+        7952,
+        1296
+      ]
     },
     {
       "parameters": {
@@ -301,7 +347,10 @@
       },
       "type": "n8n-nodes-base.clickUp",
       "typeVersion": 1,
-      "position": [8176, 1296],
+      "position": [
+        8176,
+        1296
+      ],
       "id": "9f747b23-07de-4781-af3a-310e99f587aa",
       "name": "Create ClickUp Task",
       "retryOnFail": true,
@@ -318,49 +367,165 @@
   "pinData": {},
   "connections": {
     "On form submission": {
-      "main": [[{ "node": "Split PDFs", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Split PDFs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Gmail Trigger (.FIT)": {
-      "main": [[{ "node": "Split PDFs", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Split PDFs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Gmail Trigger (Partnerships)": {
-      "main": [[{ "node": "Split PDFs", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Split PDFs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Split PDFs": {
-      "main": [[{ "node": "Extract Fields (Claude)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Extract Fields (Claude)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Extract Fields (Claude)": {
-      "main": [[{ "node": "Parse Extraction JSON", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse Extraction JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parse Extraction JSON": {
-      "main": [[{ "node": "Normalize Website URL", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Normalize Website URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Normalize Website URL": {
-      "main": [[{ "node": "Has Website?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Has Website?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Has Website?": {
       "main": [
-        [{ "node": "Resolve URL", "type": "main", "index": 0 }],
-        [{ "node": "SerpAPI Instagram Search", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Resolve URL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "SerpAPI Instagram Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "SerpAPI Instagram Search": {
-      "main": [[{ "node": "Extract Instagram URL", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Extract Instagram URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Extract Instagram URL": {
-      "main": [[{ "node": "Resolve URL", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Resolve URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Resolve URL": {
-      "main": [[{ "node": "Crawl Website", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Crawl Website",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Crawl Website": {
-      "main": [[{ "node": "Classify Facilities & Amenities", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Classify Facilities & Amenities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Classify Facilities & Amenities": {
-      "main": [[{ "node": "Build ClickUp Payload", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Build ClickUp Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Build ClickUp Payload": {
-      "main": [[{ "node": "Create ClickUp Task", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Create ClickUp Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
