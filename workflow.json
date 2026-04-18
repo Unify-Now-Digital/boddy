@@ -3,21 +3,23 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Flow A — Submit contact forms\n\nTrigger: Clay pushes a batch of gyms (JSON array) to the webhook.\nEach item needs: company_name, website, contact_form_url, country, (optional) first_name.\n\n1. Filter by allowed country\n2. Render message from template\n3. POST to Skyvern (async — returns task_id)\n4. Upsert HubSpot company + log 'Form submission queued' activity with source tag\n5. Respond to Clay with task_ids",
-        "height": 380,
-        "width": 420
+        "content": "## Flow A — Submit contact forms\n\nTrigger: Clay POSTs `{ \"items\": [ { company_name, website, contact_form_url, country, first_name? } ] }` to /webhook/clay-gym-batch.\n\nThe webhook responds immediately (onReceived), so Clay isn't blocked on Skyvern.\n\nPer item:\n1. Normalize website → domain (lowercase, strip proto/www/path)\n2. Check HubSpot — skip if this domain already has a skyvern_task_id (dedupe)\n3. Country filter\n4. Render message\n5. Skyvern: queue task (async — returns task_id)\n6. HubSpot: batch/upsert company keyed on `domain`\n7. HubSpot: log 'queued' note\n8. Wait 200ms to stay under rate limits",
+        "height": 440,
+        "width": 460
       },
       "id": "note-flow-a",
       "name": "Flow A — notes",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-200, -200]
+      "position": [-220, -260]
     },
     {
       "parameters": {
         "httpMethod": "POST",
         "path": "clay-gym-batch",
-        "responseMode": "responseNode",
+        "responseMode": "onReceived",
+        "responseData": "={{ JSON.stringify({ ok: true, accepted: ($json.items || []).length }) }}",
+        "responseCode": 202,
         "options": {}
       },
       "id": "clay-webhook",
@@ -40,15 +42,77 @@
     },
     {
       "parameters": {
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "norm-domain",
+              "name": "domain",
+              "value": "={{ ($json.website || '').toString().toLowerCase().replace(/^https?:\\/\\//, '').replace(/^www\\./, '').split('/')[0].split('?')[0].trim() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "normalize-domain",
+      "name": "Normalize domain",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [640, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/companies/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'domain', operator: 'EQ', value: $json.domain }, { propertyName: 'skyvern_task_id', operator: 'HAS_PROPERTY' }] }], properties: ['name','domain','skyvern_task_id'], limit: 1 }) }}",
+        "options": {}
+      },
+      "id": "dedupe-check",
+      "name": "HubSpot: dedupe check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [840, 0],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hubspot-token",
+          "name": "HubSpot token"
+        }
+      }
+    },
+    {
+      "parameters": {
         "conditions": {
-          "options": {
-            "caseSensitive": false,
-            "typeValidation": "loose"
-          },
+          "options": { "caseSensitive": false, "typeValidation": "loose" },
           "conditions": [
             {
-              "leftValue": "={{ $json.country }}",
-              "rightValue": "={{ $env.ALLOWED_COUNTRIES.split(',') }}",
+              "leftValue": "={{ $json.total }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "dedupe-gate",
+      "name": "First time for this domain?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1040, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "typeValidation": "loose" },
+          "conditions": [
+            {
+              "leftValue": "={{ ($env.ALLOWED_COUNTRIES || '').split(',').map(s => s.trim().toUpperCase()) }}",
+              "rightValue": "={{ ($('Split gyms').item.json.country || '').toString().trim().toUpperCase() }}",
               "operator": {
                 "type": "array",
                 "operation": "contains",
@@ -64,29 +128,18 @@
       "name": "Allowed country?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [640, 0],
-      "notes": "ALLOWED_COUNTRIES is a comma-separated env var, e.g. 'US,UK,DE,CA'"
+      "position": [1240, -80],
+      "notes": "ALLOWED_COUNTRIES env var: comma-separated ISO codes, e.g. 'US,UK,DE,CA'. Compared case-insensitively."
     },
     {
       "parameters": {
+        "includeOtherFields": true,
         "assignments": {
           "assignments": [
             {
-              "id": "msg-name",
-              "name": "merged_first_name",
-              "value": "={{ $json.first_name || 'there' }}",
-              "type": "string"
-            },
-            {
-              "id": "msg-company",
-              "name": "merged_company",
-              "value": "={{ $json.company_name }}",
-              "type": "string"
-            },
-            {
               "id": "msg-body",
               "name": "message",
-              "value": "=Hi {{ $json.first_name || 'there' }},\n\nI run a company that helps boutique gyms like {{ $json.company_name }} fill off-peak classes with local corporate memberships. Happy to share a short case study if you're open to a quick look.\n\nCheers,\nGiorgi",
+              "value": "=Hi {{ ($('Split gyms').item.json.first_name || 'there') }},\n\nI run a company that helps boutique gyms like {{ $('Split gyms').item.json.company_name }} fill off-peak classes with local corporate memberships. Happy to share a short case study if you're open to a quick look.\n\nCheers,\nGiorgi",
               "type": "string"
             }
           ]
@@ -97,17 +150,17 @@
       "name": "Render message",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [860, -80]
+      "position": [1440, -160]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.skyvern.com/api/v1/tasks",
+        "url": "https://api.skyvern.com/api/v1/tasks/",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"url\": \"{{ $json.contact_form_url }}\",\n  \"navigation_goal\": \"Fill in and submit the contact form with the provided details.\",\n  \"navigation_payload\": {\n    \"name\": \"Giorgi\",\n    \"email\": \"{{ $env.OUTREACH_FROM_EMAIL }}\",\n    \"company\": \"Boddy\",\n    \"message\": {{ JSON.stringify($json.message) }}\n  },\n  \"webhook_callback_url\": \"{{ $env.N8N_BASE_URL }}/webhook/skyvern-callback\",\n  \"proxy_location\": \"RESIDENTIAL\"\n}",
+        "jsonBody": "={{ JSON.stringify({\n  url: $('Split gyms').item.json.contact_form_url,\n  navigation_goal: 'Fill in and submit the contact form with the provided details. Confirm submission by detecting a success message or redirect.',\n  navigation_payload: {\n    name: 'Giorgi',\n    email: $env.OUTREACH_FROM_EMAIL,\n    company: 'Boddy',\n    message: $json.message\n  },\n  webhook_callback_url: ($env.N8N_BASE_URL || '').replace(/\\/$/, '') + '/webhook/skyvern-callback',\n  proxy_location: 'RESIDENTIAL'\n}) }}",
         "options": {
           "timeout": 20000
         }
@@ -116,37 +169,38 @@
       "name": "Skyvern: queue task",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1080, -80],
+      "position": [1640, -160],
       "credentials": {
         "httpHeaderAuth": {
           "id": "skyvern-api-key",
           "name": "Skyvern API key"
         }
-      }
+      },
+      "notes": "Auth: header 'x-api-key: <key>'. Endpoint path must match your Skyvern tenant (v1 or v2)."
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.hubapi.com/crm/v3/objects/companies",
+        "url": "https://api.hubapi.com/crm/v3/objects/companies/batch/upsert",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"properties\": {\n    \"name\": \"{{ $('Split gyms').item.json.company_name }}\",\n    \"domain\": \"{{ $('Split gyms').item.json.website.replace(/^https?:\\/\\//,'').split('/')[0] }}\",\n    \"country\": \"{{ $('Split gyms').item.json.country }}\",\n    \"outreach_source\": \"contact-form-skyvern\",\n    \"skyvern_task_id\": \"{{ $json.task_id }}\",\n    \"skyvern_status\": \"queued\"\n  }\n}",
+        "jsonBody": "={{ JSON.stringify({\n  inputs: [{\n    idProperty: 'domain',\n    id: $('Normalize domain').item.json.domain,\n    properties: {\n      name: $('Split gyms').item.json.company_name,\n      domain: $('Normalize domain').item.json.domain,\n      country: $('Split gyms').item.json.country,\n      outreach_source: 'contact-form-skyvern',\n      skyvern_task_id: $json.task_id,\n      skyvern_status: 'queued'\n    }\n  }]\n}) }}",
         "options": {}
       },
       "id": "hubspot-upsert",
       "name": "HubSpot: upsert company",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1300, -80],
+      "position": [1840, -160],
       "credentials": {
         "httpHeaderAuth": {
           "id": "hubspot-token",
           "name": "HubSpot token"
         }
       },
-      "notes": "HubSpot private app token as Authorization: Bearer <token>. Domain-based dedupe is HubSpot's default."
+      "notes": "Batch upsert with idProperty=domain. Prevents duplicates on re-runs."
     },
     {
       "parameters": {
@@ -156,14 +210,14 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"properties\": {\n    \"hs_note_body\": \"[source: contact-form-skyvern] Queued contact-form submission.\\n\\nTask ID: {{ $('Skyvern: queue task').item.json.task_id }}\\nForm URL: {{ $('Split gyms').item.json.contact_form_url }}\\n\\nMessage sent:\\n{{ $('Render message').item.json.message }}\",\n    \"hs_timestamp\": \"{{ $now.toISO() }}\"\n  },\n  \"associations\": [\n    {\n      \"to\": { \"id\": \"{{ $json.id }}\" },\n      \"types\": [{ \"associationCategory\": \"HUBSPOT_DEFINED\", \"associationTypeId\": 190 }]\n    }\n  ]\n}",
+        "jsonBody": "={{ JSON.stringify({\n  properties: {\n    hs_note_body: '[source: contact-form-skyvern] Queued contact-form submission.\\n\\nTask ID: ' + $('Skyvern: queue task').item.json.task_id + '\\nForm URL: ' + $('Split gyms').item.json.contact_form_url + '\\n\\nMessage sent:\\n' + $('Render message').item.json.message,\n    hs_timestamp: Date.now()\n  },\n  associations: [{\n    to: { id: $json.results[0].id },\n    types: [{ associationCategory: 'HUBSPOT_DEFINED', associationTypeId: 190 }]\n  }]\n}) }}",
         "options": {}
       },
       "id": "hubspot-note",
-      "name": "HubSpot: log activity",
+      "name": "HubSpot: log queued",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1520, -80],
+      "position": [2040, -160],
       "credentials": {
         "httpHeaderAuth": {
           "id": "hubspot-token",
@@ -173,85 +227,103 @@
     },
     {
       "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "skip-reason",
-              "name": "skipped",
-              "value": "country_not_allowed",
-              "type": "string"
-            },
-            {
-              "id": "skip-company",
-              "name": "company",
-              "value": "={{ $json.company_name }}",
-              "type": "string"
-            }
-          ]
-        },
-        "options": {}
+        "amount": 200,
+        "unit": "ms"
       },
-      "id": "skipped-log",
-      "name": "Skipped (country)",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [860, 160]
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={ \"ok\": true }",
-        "options": {}
-      },
-      "id": "respond-clay",
-      "name": "Respond to Clay",
-      "type": "n8n-nodes-base.respondToWebhook",
+      "id": "rate-limit-wait",
+      "name": "Wait (rate limit)",
+      "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [1740, 0]
+      "position": [2240, -160]
     },
 
     {
       "parameters": {
-        "content": "## Flow B — Skyvern callback\n\nSkyvern POSTs back when the task finishes (success or fail).\nWe look up the HubSpot company by the stored skyvern_task_id and append an outcome activity.",
-        "height": 240,
-        "width": 420
+        "content": "## Flow B — Skyvern callback\n\nSkyvern POSTs to /webhook/skyvern-callback when a task completes. Shape (typical): { task_id, status: 'completed'|'failed', screenshot_url?, failure_reason? }.\n\nWe look up the HubSpot company by skyvern_task_id, PATCH the status field, and append an outcome note. If no company matches, we drop the callback.",
+        "height": 260,
+        "width": 460
       },
       "id": "note-flow-b",
       "name": "Flow B — notes",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-200, 520]
+      "position": [-220, 560]
     },
     {
       "parameters": {
         "httpMethod": "POST",
         "path": "skyvern-callback",
         "responseMode": "onReceived",
+        "responseCode": 200,
         "options": {}
       },
       "id": "skyvern-callback",
       "name": "Skyvern callback webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [240, 720],
+      "position": [240, 760],
       "webhookId": "skyvern-callback"
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "=https://api.hubapi.com/crm/v3/objects/companies/search",
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/companies/search",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"filterGroups\": [{\n    \"filters\": [{\n      \"propertyName\": \"skyvern_task_id\",\n      \"operator\": \"EQ\",\n      \"value\": \"{{ $json.task_id }}\"\n    }]\n  }],\n  \"properties\": [\"name\",\"skyvern_task_id\"],\n  \"limit\": 1\n}",
+        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'skyvern_task_id', operator: 'EQ', value: $json.task_id }] }], properties: ['name','skyvern_task_id','skyvern_status'], limit: 1 }) }}",
         "options": {}
       },
       "id": "hubspot-find-company",
       "name": "HubSpot: find company by task_id",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [460, 720],
+      "position": [460, 760],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hubspot-token",
+          "name": "HubSpot token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "typeValidation": "loose" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.total }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "callback-match",
+      "name": "Company found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 760]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.hubapi.com/crm/v3/objects/companies/{{ $json.results[0].id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { skyvern_status: ($('Skyvern callback webhook').item.json.status || 'unknown') } }) }}",
+        "options": {}
+      },
+      "id": "hubspot-patch-status",
+      "name": "HubSpot: update status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 680],
       "credentials": {
         "httpHeaderAuth": {
           "id": "hubspot-token",
@@ -267,14 +339,14 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"properties\": {\n    \"hs_note_body\": \"[source: contact-form-skyvern] Skyvern task {{ $('Skyvern callback webhook').item.json.status }}.\\n\\nScreenshot: {{ $('Skyvern callback webhook').item.json.screenshot_url || 'n/a' }}\\nFailure reason: {{ $('Skyvern callback webhook').item.json.failure_reason || 'n/a' }}\",\n    \"hs_timestamp\": \"{{ $now.toISO() }}\"\n  },\n  \"associations\": [\n    {\n      \"to\": { \"id\": \"{{ $json.results[0].id }}\" },\n      \"types\": [{ \"associationCategory\": \"HUBSPOT_DEFINED\", \"associationTypeId\": 190 }]\n    }\n  ]\n}",
+        "jsonBody": "={{ JSON.stringify({\n  properties: {\n    hs_note_body: '[source: contact-form-skyvern] Skyvern task ' + ($('Skyvern callback webhook').item.json.status || 'unknown') + '.\\n\\nScreenshot: ' + ($('Skyvern callback webhook').item.json.screenshot_url || 'n/a') + '\\nFailure reason: ' + ($('Skyvern callback webhook').item.json.failure_reason || 'n/a'),\n    hs_timestamp: Date.now()\n  },\n  associations: [{\n    to: { id: $('HubSpot: find company by task_id').item.json.results[0].id },\n    types: [{ associationCategory: 'HUBSPOT_DEFINED', associationTypeId: 190 }]\n  }]\n}) }}",
         "options": {}
       },
       "id": "hubspot-callback-note",
       "name": "HubSpot: log outcome",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [680, 720],
+      "position": [1120, 680],
       "credentials": {
         "httpHeaderAuth": {
           "id": "hubspot-token",
@@ -282,25 +354,31 @@
         }
       }
     },
+    {
+      "parameters": {},
+      "id": "callback-drop",
+      "name": "Drop (unknown task)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [900, 840]
+    },
 
     {
       "parameters": {
-        "content": "## Flow C — Reply capture\n\nGmail trigger on the outreach inbox. Gyms reply from their own domain, so we match by the sender's email domain to the HubSpot company's domain.\n\nIf a company matches, log the reply as a 'received' activity. If no match, fall through to an unmatched bucket for manual review.",
-        "height": 300,
-        "width": 420
+        "content": "## Flow C — Reply capture\n\nGmail Trigger (simple mode) polls the outreach inbox every minute, filter `is:unread -from:me` plus excludes our own domain + common auto-reply subjects.\n\nMatching is by the sender's email **domain** vs. the HubSpot company's `domain` property — gyms reply from their own address, not the one we submitted. On match, we log a reply note and mark the company with `skyvern_status: 'replied'`. On no match, we drop into an unmatched sink.\n\nEvery processed message is marked READ at the end so we don't re-log it.",
+        "height": 340,
+        "width": 460
       },
       "id": "note-flow-c",
       "name": "Flow C — notes",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-200, 1100]
+      "position": [-220, 1220]
     },
     {
       "parameters": {
-        "pollTimes": {
-          "item": [{ "mode": "everyMinute" }]
-        },
-        "simple": false,
+        "pollTimes": { "item": [{ "mode": "everyMinute" }] },
+        "simple": true,
         "filters": {
           "q": "is:unread -from:me"
         },
@@ -310,7 +388,7 @@
       "name": "Gmail: new reply",
       "type": "n8n-nodes-base.gmailTrigger",
       "typeVersion": 1,
-      "position": [240, 1300],
+      "position": [240, 1440],
       "credentials": {
         "gmailOAuth2": {
           "id": "gmail-oauth",
@@ -320,30 +398,37 @@
     },
     {
       "parameters": {
+        "includeOtherFields": true,
         "assignments": {
           "assignments": [
             {
-              "id": "from-domain",
-              "name": "from_domain",
-              "value": "={{ ($json.from?.value?.[0]?.address || $json.From || '').split('@')[1]?.toLowerCase() }}",
+              "id": "from-address",
+              "name": "from_address",
+              "value": "={{ (() => { const f = ($json.From || $json.from || '').toString(); const m = f.match(/<([^>]+)>/); return (m ? m[1] : f).trim().toLowerCase(); })() }}",
               "type": "string"
             },
             {
-              "id": "from-address",
-              "name": "from_address",
-              "value": "={{ $json.from?.value?.[0]?.address || $json.From }}",
+              "id": "from-domain",
+              "name": "from_domain",
+              "value": "={{ (() => { const f = ($json.From || $json.from || '').toString(); const m = f.match(/<([^>]+)>/); const addr = (m ? m[1] : f).trim().toLowerCase(); return (addr.split('@')[1] || '').replace(/^www\\./, ''); })() }}",
               "type": "string"
             },
             {
               "id": "subject",
               "name": "subject",
-              "value": "={{ $json.subject || $json.Subject }}",
+              "value": "={{ ($json.Subject || $json.subject || '').toString() }}",
               "type": "string"
             },
             {
               "id": "snippet",
               "name": "snippet",
-              "value": "={{ ($json.snippet || $json.text || '').slice(0, 500) }}",
+              "value": "={{ (($json.text || $json.snippet || '') + '').slice(0, 1000) }}",
+              "type": "string"
+            },
+            {
+              "id": "message-id",
+              "name": "gmail_message_id",
+              "value": "={{ $json.id }}",
               "type": "string"
             }
           ]
@@ -354,7 +439,33 @@
       "name": "Extract sender + body",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [460, 1300]
+      "position": [460, 1440]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "typeValidation": "loose" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.from_domain }}",
+              "rightValue": "={{ ($env.OUTREACH_FROM_EMAIL || '').split('@')[1] || '__none__' }}",
+              "operator": { "type": "string", "operation": "notEquals" }
+            },
+            {
+              "leftValue": "={{ $json.subject.toLowerCase() }}",
+              "rightValue": "(out of office|auto-reply|automatic reply|delivery status notification|undeliverable)",
+              "operator": { "type": "string", "operation": "notRegex" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "reply-guard",
+      "name": "Real reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 1440]
     },
     {
       "parameters": {
@@ -364,14 +475,14 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"filterGroups\": [{\n    \"filters\": [{\n      \"propertyName\": \"domain\",\n      \"operator\": \"EQ\",\n      \"value\": \"{{ $json.from_domain }}\"\n    }]\n  }],\n  \"properties\": [\"name\",\"domain\",\"outreach_source\"],\n  \"limit\": 1\n}",
+        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'domain', operator: 'EQ', value: $json.from_domain }] }], properties: ['name','domain','outreach_source','skyvern_status'], limit: 1 }) }}",
         "options": {}
       },
       "id": "hubspot-match-reply",
       "name": "HubSpot: match by domain",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [680, 1300],
+      "position": [900, 1360],
       "credentials": {
         "httpHeaderAuth": {
           "id": "hubspot-token",
@@ -398,7 +509,7 @@
       "name": "Match found?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [900, 1300]
+      "position": [1120, 1360]
     },
     {
       "parameters": {
@@ -408,14 +519,14 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"properties\": {\n    \"hs_note_body\": \"[source: contact-form-skyvern] Reply received from {{ $('Extract sender + body').item.json.from_address }}\\n\\nSubject: {{ $('Extract sender + body').item.json.subject }}\\n\\n{{ $('Extract sender + body').item.json.snippet }}\",\n    \"hs_timestamp\": \"{{ $now.toISO() }}\"\n  },\n  \"associations\": [\n    {\n      \"to\": { \"id\": \"{{ $json.results[0].id }}\" },\n      \"types\": [{ \"associationCategory\": \"HUBSPOT_DEFINED\", \"associationTypeId\": 190 }]\n    }\n  ]\n}",
+        "jsonBody": "={{ JSON.stringify({\n  properties: {\n    hs_note_body: '[source: contact-form-skyvern] Reply received from ' + $('Extract sender + body').item.json.from_address + '\\n\\nSubject: ' + $('Extract sender + body').item.json.subject + '\\n\\n' + $('Extract sender + body').item.json.snippet,\n    hs_timestamp: Date.now()\n  },\n  associations: [{\n    to: { id: $json.results[0].id },\n    types: [{ associationCategory: 'HUBSPOT_DEFINED', associationTypeId: 190 }]\n  }]\n}) }}",
         "options": {}
       },
       "id": "hubspot-reply-note",
       "name": "HubSpot: log reply",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1120, 1220],
+      "position": [1340, 1280],
       "credentials": {
         "httpHeaderAuth": {
           "id": "hubspot-token",
@@ -425,24 +536,60 @@
     },
     {
       "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "unmatched",
-              "name": "unmatched_reply",
-              "value": "={{ { from: $('Extract sender + body').item.json.from_address, subject: $('Extract sender + body').item.json.subject, snippet: $('Extract sender + body').item.json.snippet } }}",
-              "type": "object"
-            }
-          ]
-        },
+        "method": "PATCH",
+        "url": "=https://api.hubapi.com/crm/v3/objects/companies/{{ $('Match found?').item.json.results[0].id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { skyvern_status: 'replied' } }) }}",
         "options": {}
       },
+      "id": "hubspot-mark-replied",
+      "name": "HubSpot: mark replied",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 1280],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hubspot-token",
+          "name": "HubSpot token"
+        }
+      }
+    },
+    {
+      "parameters": {},
       "id": "unmatched-bucket",
       "name": "Unmatched (manual review)",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [1120, 1400],
-      "notes": "Wire this to Slack/email/a Google Sheet later. Keeping it inert for the prototype."
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1340, 1440],
+      "notes": "Wire to Slack/Sheet/HubSpot unassociated note when ready. Message still gets marked read below."
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $('Extract sender + body').item.json.gmail_message_id }}"
+      },
+      "id": "gmail-mark-read",
+      "name": "Gmail: mark as read",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1780, 1360],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-oauth",
+          "name": "Outreach inbox"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "ignored-noise",
+      "name": "Ignored (auto-reply / self)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [900, 1520]
     }
   ],
   "connections": {
@@ -450,12 +597,24 @@
       "main": [[{ "node": "Split gyms", "type": "main", "index": 0 }]]
     },
     "Split gyms": {
-      "main": [[{ "node": "Allowed country?", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Normalize domain", "type": "main", "index": 0 }]]
+    },
+    "Normalize domain": {
+      "main": [[{ "node": "HubSpot: dedupe check", "type": "main", "index": 0 }]]
+    },
+    "HubSpot: dedupe check": {
+      "main": [[{ "node": "First time for this domain?", "type": "main", "index": 0 }]]
+    },
+    "First time for this domain?": {
+      "main": [
+        [{ "node": "Allowed country?", "type": "main", "index": 0 }],
+        []
+      ]
     },
     "Allowed country?": {
       "main": [
         [{ "node": "Render message", "type": "main", "index": 0 }],
-        [{ "node": "Skipped (country)", "type": "main", "index": 0 }]
+        []
       ]
     },
     "Render message": {
@@ -465,19 +624,25 @@
       "main": [[{ "node": "HubSpot: upsert company", "type": "main", "index": 0 }]]
     },
     "HubSpot: upsert company": {
-      "main": [[{ "node": "HubSpot: log activity", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "HubSpot: log queued", "type": "main", "index": 0 }]]
     },
-    "HubSpot: log activity": {
-      "main": [[{ "node": "Respond to Clay", "type": "main", "index": 0 }]]
-    },
-    "Skipped (country)": {
-      "main": [[{ "node": "Respond to Clay", "type": "main", "index": 0 }]]
+    "HubSpot: log queued": {
+      "main": [[{ "node": "Wait (rate limit)", "type": "main", "index": 0 }]]
     },
 
     "Skyvern callback webhook": {
       "main": [[{ "node": "HubSpot: find company by task_id", "type": "main", "index": 0 }]]
     },
     "HubSpot: find company by task_id": {
+      "main": [[{ "node": "Company found?", "type": "main", "index": 0 }]]
+    },
+    "Company found?": {
+      "main": [
+        [{ "node": "HubSpot: update status", "type": "main", "index": 0 }],
+        [{ "node": "Drop (unknown task)", "type": "main", "index": 0 }]
+      ]
+    },
+    "HubSpot: update status": {
       "main": [[{ "node": "HubSpot: log outcome", "type": "main", "index": 0 }]]
     },
 
@@ -485,7 +650,13 @@
       "main": [[{ "node": "Extract sender + body", "type": "main", "index": 0 }]]
     },
     "Extract sender + body": {
-      "main": [[{ "node": "HubSpot: match by domain", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Real reply?", "type": "main", "index": 0 }]]
+    },
+    "Real reply?": {
+      "main": [
+        [{ "node": "HubSpot: match by domain", "type": "main", "index": 0 }],
+        [{ "node": "Ignored (auto-reply / self)", "type": "main", "index": 0 }]
+      ]
     },
     "HubSpot: match by domain": {
       "main": [[{ "node": "Match found?", "type": "main", "index": 0 }]]
@@ -495,9 +666,18 @@
         [{ "node": "HubSpot: log reply", "type": "main", "index": 0 }],
         [{ "node": "Unmatched (manual review)", "type": "main", "index": 0 }]
       ]
+    },
+    "HubSpot: log reply": {
+      "main": [[{ "node": "HubSpot: mark replied", "type": "main", "index": 0 }]]
+    },
+    "HubSpot: mark replied": {
+      "main": [[{ "node": "Gmail: mark as read", "type": "main", "index": 0 }]]
+    },
+    "Unmatched (manual review)": {
+      "main": [[{ "node": "Gmail: mark as read", "type": "main", "index": 0 }]]
     }
   },
   "active": false,
   "settings": { "executionOrder": "v1" },
-  "tags": [{ "name": "outreach" }, { "name": "skyvern" }, { "name": "prototype" }]
+  "tags": [{ "name": "outreach" }, { "name": "skyvern" }]
 }
