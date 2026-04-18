@@ -229,47 +229,14 @@
     },
     {
       "parameters": {
-        "url": "={{ $json._resolvedUrl }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "User-Agent",
-              "value": "Mozilla/5.0 (compatible; BODDY-Intake/1.0; +https://boddy.tech)"
-            },
-            {
-              "name": "Accept",
-              "value": "text/html,application/xhtml+xml"
-            }
-          ]
-        },
-        "options": {
-          "timeout": 20000,
-          "response": {
-            "response": {
-              "responseFormat": "text",
-              "neverError": true
-            }
-          }
-        }
-      },
-      "id": "27789600-84e2-4571-954b-57334e502611",
-      "name": "Fetch URL",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [7280, 1296],
-      "onError": "continueRegularOutput",
-      "alwaysOutputData": true
-    },
-    {
-      "parameters": {
-        "jsCode": "// Strip HTML to text and truncate before classification.\n// Keeps the profile fields from Resolve URL and attaches _pageText.\n\nconst profile = $('Resolve URL').item.json;\nconst body = $json && typeof $json.data === 'string' ? $json.data : (typeof $json === 'string' ? $json : (typeof $json.body === 'string' ? $json.body : ''));\n\nlet text = '';\nif (body) {\n  text = String(body)\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/&nbsp;/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n  if (text.length > 20000) text = text.slice(0, 20000);\n}\n\nreturn [{\n  json: {\n    ...profile,\n    _pageText: text,\n    _fetchEmpty: !text\n  }\n}];"
+        "jsCode": "// Crawl Website (sitemap-aware)\n//\n// Captures \u201cfull website\u201d rather than just the homepage:\n//   1. Fetches /sitemap.xml from the resolved URL's origin.\n//   2. If it's a sitemap index (all entries are other .xml files),\n//      flattens up to 2 sub-sitemaps.\n//   3. Picks the homepage + up to 5 internal pages whose path matches\n//      facility/amenity/class/service/about/pricing keywords.\n//   4. Falls back to the single resolved URL if sitemap is missing,\n//      a login wall (Instagram), or any other failure.\n//   5. Fetches all pages with a real UA + short timeout, swallowing\n//      per-page errors so one dead page doesn't kill the rest.\n//   6. Strips <script>, <style>, comments, tags, entities; normalises\n//      whitespace; concatenates; truncates at 40,000 chars.\n//\n// Emits a single item per input: profile + _pageText + _fetchEmpty\n// + _pagesFetched/_pagesAttempted for debugging.\n\nconst helpers = this.helpers;\nconst profile = $input.first().json;\nconst baseUrl = profile._resolvedUrl;\n\nconst UA = 'Mozilla/5.0 (compatible; BODDY-Intake/1.0; +https://boddy.tech)';\nconst TIMEOUT = 15000;\nconst KEYWORDS = /\\/(facilit|amenit|class|service|about|member|pricing|studio|experience|offering|wellness|fitness|train)/i;\nconst MAX_PAGES = 6;\nconst MAX_CHARS = 40000;\n\nconst emptyOut = () => [{ json: { ...profile, _pageText: '', _fetchEmpty: true, _pagesFetched: 0, _pagesAttempted: 0 } }];\n\nif (!baseUrl) return emptyOut();\n\nconst fetchText = async (url) => {\n  try {\n    const res = await helpers.httpRequest({\n      url,\n      method: 'GET',\n      timeout: TIMEOUT,\n      returnFullResponse: false,\n      headers: {\n        'User-Agent': UA,\n        'Accept': 'text/html,application/xhtml+xml,application/xml'\n      }\n    });\n    return typeof res === 'string' ? res : (res ? String(res) : '');\n  } catch (e) {\n    return '';\n  }\n};\n\nconst stripHtml = (html) => String(html || '')\n  .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n  .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n  .replace(/<!--[\\s\\S]*?-->/g, ' ')\n  .replace(/<[^>]+>/g, ' ')\n  .replace(/&nbsp;|&amp;|&quot;|&#39;|&lt;|&gt;/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\n// Discover candidate URLs from sitemap.xml\nlet pages = [baseUrl];\nlet origin = null;\ntry { origin = new URL(baseUrl).origin; } catch (e) { /* malformed url */ }\n\nif (origin && !/instagram\\.com$/i.test(new URL(baseUrl).hostname)) {\n  const sitemapText = await fetchText(origin + '/sitemap.xml');\n  if (sitemapText) {\n    let locs = Array.from(sitemapText.matchAll(/<loc>([^<]+)<\\/loc>/gi)).map(m => m[1].trim());\n\n    // Sitemap index: all entries are other .xml files\n    const allXml = locs.length > 0 && locs.every(u => /\\.xml(\\?|$)/i.test(u));\n    if (allXml) {\n      const flattened = [];\n      for (const sm of locs.slice(0, 2)) {\n        const sub = await fetchText(sm);\n        flattened.push(...Array.from(sub.matchAll(/<loc>([^<]+)<\\/loc>/gi)).map(m => m[1].trim()));\n      }\n      locs = flattened;\n    }\n\n    const relevant = locs\n      .filter(u => KEYWORDS.test(u) && u !== baseUrl)\n      .slice(0, MAX_PAGES - 1);\n    pages = [baseUrl, ...relevant];\n  }\n}\n\n// Fetch all selected pages\nconst texts = [];\nfor (const url of pages) {\n  const html = await fetchText(url);\n  const stripped = stripHtml(html);\n  if (stripped) texts.push(stripped);\n}\n\nlet combined = texts.join('\\n\\n').trim();\nif (combined.length > MAX_CHARS) combined = combined.slice(0, MAX_CHARS);\n\nreturn [{\n  json: {\n    ...profile,\n    _pageText: combined,\n    _fetchEmpty: !combined,\n    _pagesFetched: texts.length,\n    _pagesAttempted: pages.length\n  }\n}];"
       },
       "id": "e5f9f7f8-5555-4e55-be55-5555555555e5",
-      "name": "Strip HTML",
+      "name": "Crawl Website",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [7504, 1296]
+      "position": [7280, 1296],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -312,7 +279,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse the Anthropic Messages API response, merge with the profile\n// from Strip HTML, compute needs_review, and build the ClickUp task\n// name + markdown description. Robust to upstream failures \u2014 on any\n// parsing error, falls back to empty arrays and flags for Arin.\n\nconst profile = $('Strip HTML').item.json;\nconst current = $json || {};\n\n// Anthropic /v1/messages response shape: { content: [ { type: 'text', text: '...' } ], ... }\nlet raw = '';\nif (Array.isArray(current.content)) {\n  const textBlock = current.content.find(c => c && c.type === 'text');\n  if (textBlock && typeof textBlock.text === 'string') raw = textBlock.text;\n} else if (typeof current.text === 'string') {\n  raw = current.text;\n}\n\nlet classified = { facilities: [], amenities: [] };\ntry {\n  const m = String(raw).match(/\\{[\\s\\S]*\\}/);\n  if (m) {\n    const parsed = JSON.parse(m[0]);\n    if (Array.isArray(parsed.facilities)) classified.facilities = parsed.facilities;\n    if (Array.isArray(parsed.amenities)) classified.amenities = parsed.amenities;\n  }\n} catch (e) {\n  // swallow \u2014 empty arrays + needs_review will flag it\n}\n\nconst needsReview = Boolean(\n  profile._parseFailed ||\n  (!profile.website && !profile.instagram) ||\n  profile._fetchEmpty ||\n  (classified.facilities.length === 0 && classified.amenities.length === 0)\n);\n\nconst fmt = v => (v === null || v === undefined || v === '') ? '\u2014' : v;\nconst fmtList = a => (Array.isArray(a) && a.length) ? a.map(x => '- ' + x).join('\\n') : '\u2014';\n\nconst reasons = [\n  profile._parseFailed && 'extraction failed',\n  (!profile.website && !profile.instagram) && 'no website or Instagram',\n  profile._fetchEmpty && 'site content empty',\n  (classified.facilities.length === 0 && classified.amenities.length === 0) && 'no facilities/amenities matched'\n].filter(Boolean);\n\nconst reviewBanner = needsReview\n  ? `> **Needs review** \u2014 arin.melvin@boddy.tech\\n> Reasons: ${reasons.join('; ')}\\n\\n`\n  : '';\n\nconst body = `${reviewBanner}## About\\n${fmt(profile.description)}\\n\\n## Contact\\n- Name: ${fmt(profile.contact_name)}\\n- Role: ${fmt(profile.contact_role)}\\n- Email: ${fmt(profile.contact_email)}\\n- Phone: ${fmt(profile.contact_phone)}\\n\\n## Location\\n${fmt(profile.location_city)}, ${fmt(profile.location_country)}\\n\\n## Business\\n- Type: ${fmt(profile.business_type)}\\n- Website: ${fmt(profile.website)}\\n- Instagram: ${fmt(profile.instagram)}\\n\\n## Facilities\\n${fmtList(classified.facilities)}\\n\\n## Amenities\\n${fmtList(classified.amenities)}\\n\\n## Pricing\\n${fmtList(profile.pricing_details)}\\n\\n## Contract\\n${fmt(profile.contract_type)}\\n\\n---\\nSource file: ${fmt(profile._sourceFileName)}`;\n\nconst name = (needsReview ? '[REVIEW \u2014 Arin] ' : '') + (profile.business_name || 'New Partner');\n\nreturn [{\n  json: {\n    task_name: name,\n    task_content: body,\n    needs_review: needsReview,\n    facilities: classified.facilities,\n    amenities: classified.amenities,\n    ...profile\n  }\n}];"
+        "jsCode": "// Parse the Anthropic Messages API response, merge with the profile\n// from Strip HTML, compute needs_review, and build the ClickUp task\n// name + markdown description. Robust to upstream failures \u2014 on any\n// parsing error, falls back to empty arrays and flags for Arin.\n\nconst profile = $('Crawl Website').item.json;\nconst current = $json || {};\n\n// Anthropic /v1/messages response shape: { content: [ { type: 'text', text: '...' } ], ... }\nlet raw = '';\nif (Array.isArray(current.content)) {\n  const textBlock = current.content.find(c => c && c.type === 'text');\n  if (textBlock && typeof textBlock.text === 'string') raw = textBlock.text;\n} else if (typeof current.text === 'string') {\n  raw = current.text;\n}\n\nlet classified = { facilities: [], amenities: [] };\ntry {\n  const m = String(raw).match(/\\{[\\s\\S]*\\}/);\n  if (m) {\n    const parsed = JSON.parse(m[0]);\n    if (Array.isArray(parsed.facilities)) classified.facilities = parsed.facilities;\n    if (Array.isArray(parsed.amenities)) classified.amenities = parsed.amenities;\n  }\n} catch (e) {\n  // swallow \u2014 empty arrays + needs_review will flag it\n}\n\nconst needsReview = Boolean(\n  profile._parseFailed ||\n  (!profile.website && !profile.instagram) ||\n  profile._fetchEmpty ||\n  (classified.facilities.length === 0 && classified.amenities.length === 0)\n);\n\nconst fmt = v => (v === null || v === undefined || v === '') ? '\u2014' : v;\nconst fmtList = a => (Array.isArray(a) && a.length) ? a.map(x => '- ' + x).join('\\n') : '\u2014';\n\nconst reasons = [\n  profile._parseFailed && 'extraction failed',\n  (!profile.website && !profile.instagram) && 'no website or Instagram',\n  profile._fetchEmpty && 'site content empty',\n  (classified.facilities.length === 0 && classified.amenities.length === 0) && 'no facilities/amenities matched'\n].filter(Boolean);\n\nconst reviewBanner = needsReview\n  ? `> **Needs review** \u2014 arin.melvin@boddy.tech\\n> Reasons: ${reasons.join('; ')}\\n\\n`\n  : '';\n\nconst body = `${reviewBanner}## About\\n${fmt(profile.description)}\\n\\n## Contact\\n- Name: ${fmt(profile.contact_name)}\\n- Role: ${fmt(profile.contact_role)}\\n- Email: ${fmt(profile.contact_email)}\\n- Phone: ${fmt(profile.contact_phone)}\\n\\n## Location\\n${fmt(profile.location_city)}, ${fmt(profile.location_country)}\\n\\n## Business\\n- Type: ${fmt(profile.business_type)}\\n- Website: ${fmt(profile.website)}\\n- Instagram: ${fmt(profile.instagram)}\\n\\n## Facilities\\n${fmtList(classified.facilities)}\\n\\n## Amenities\\n${fmtList(classified.amenities)}\\n\\n## Pricing\\n${fmtList(profile.pricing_details)}\\n\\n## Contract\\n${fmt(profile.contract_type)}\\n\\n---\\nSource file: ${fmt(profile._sourceFileName)}`;\n\nconst name = (needsReview ? '[REVIEW \u2014 Arin] ' : '') + (profile.business_name || 'New Partner');\n\nreturn [{\n  json: {\n    task_name: name,\n    task_content: body,\n    needs_review: needsReview,\n    facilities: classified.facilities,\n    amenities: classified.amenities,\n    ...profile\n  }\n}];"
       },
       "id": "07fb1909-7777-4f77-af77-7777777777f7",
       "name": "Build ClickUp Payload",
@@ -384,12 +351,9 @@
       "main": [[{ "node": "Resolve URL", "type": "main", "index": 0 }]]
     },
     "Resolve URL": {
-      "main": [[{ "node": "Fetch URL", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Crawl Website", "type": "main", "index": 0 }]]
     },
-    "Fetch URL": {
-      "main": [[{ "node": "Strip HTML", "type": "main", "index": 0 }]]
-    },
-    "Strip HTML": {
+    "Crawl Website": {
       "main": [[{ "node": "Classify Facilities & Amenities", "type": "main", "index": 0 }]]
     },
     "Classify Facilities & Amenities": {
