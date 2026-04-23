@@ -1,0 +1,141 @@
+{
+  "name": "BODDY Intake: Worker",
+  "flow": [
+    {
+      "id": 1,
+      "module": "gateway:CustomWebHook",
+      "version": 1,
+      "parameters": {
+        "hook": "__TODO_WEBHOOK_ID__",
+        "maxResults": 1
+      },
+      "mapper": {},
+      "metadata": {
+        "designer": { "x": 0, "y": 0, "name": "Webhook — intake" },
+        "restore": {
+          "parameters": {
+            "hook": { "label": "boddy-intake-worker" }
+          }
+        },
+        "parameters": [
+          {
+            "name": "hook",
+            "type": "hook:gateway-webhook",
+            "label": "Webhook",
+            "required": true
+          },
+          {
+            "name": "maxResults",
+            "type": "number",
+            "label": "Maximum number of results"
+          }
+        ],
+        "interface": [
+          { "name": "pdf_base64",   "type": "text" },
+          { "name": "pdf_filename", "type": "text" },
+          { "name": "sender_email", "type": "text" },
+          { "name": "subject",      "type": "text" }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "module": "http:ActionSendData",
+      "version": 3,
+      "parameters": {
+        "handleErrors": false,
+        "useNewZLibDeCompress": true
+      },
+      "mapper": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "method": "post",
+        "headers": [
+          { "name": "x-api-key",         "value": "__TODO_ANTHROPIC_API_KEY__" },
+          { "name": "anthropic-version", "value": "2023-06-01" },
+          { "name": "content-type",      "value": "application/json" }
+        ],
+        "qs": [],
+        "bodyType": "raw",
+        "parseResponse": true,
+        "authUser": "",
+        "authPass": "",
+        "timeout": "",
+        "shareCookies": false,
+        "ca": "",
+        "rejectUnauthorized": true,
+        "followRedirect": true,
+        "useQuerystring": false,
+        "gzip": true,
+        "useMtls": false,
+        "contentType": "application/json",
+        "data": "{\n  \"model\": \"claude-opus-4-7\",\n  \"max_tokens\": 2000,\n  \"tools\": [\n    { \"type\": \"web_search_20250305\", \"name\": \"web_search\", \"max_uses\": 5 }\n  ],\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"document\",\n          \"source\": {\n            \"type\": \"base64\",\n            \"media_type\": \"application/pdf\",\n            \"data\": \"{{1.pdf_base64}}\"\n          }\n        },\n        {\n          \"type\": \"text\",\n          \"text\": \"You are profiling a fitness venue for BODDY. Work in two phases.\\n\\n=== PHASE 1 — VERIFY ===\\nFrom the partnership agreement PDF attached to this message, extract:\\n  - business_name\\n  - location_city, location_country\\n  - contact_email (keep the domain)\\n  - any website URL mentioned\\n\\nUse the web_search tool to find the venue's official website. Confirm the\\ncandidate site is the same business by cross-checking against the PDF:\\n  (a) business name on the site matches (exact or close variant),\\n  (b) city/country on the site matches the PDF,\\n  (c) the contact_email domain matches the website domain.\\n\\nAssign confidence:\\n  - high   — at least two of (a)(b)(c) match\\n  - medium — one matches\\n  - low    — none match, or no website found\\n\\n=== PHASE 2 — DESCRIBE ===\\nOnly if confidence is \\\"high\\\" or \\\"medium\\\", read the website thoroughly:\\nhome page, about, facilities, classes/services pages. Base every claim\\nEXCLUSIVELY on what the website says. Do not use the PDF for\\nfacility/activity claims — the PDF is only for verification.\\n\\nIf confidence is \\\"low\\\", skip Phase 2 and return empty description and\\nempty arrays.\\n\\n=== OUTPUT ===\\nReturn ONLY this JSON — no markdown, no prose around it:\\n\\n{\\n  \\\"business_name\\\": \\\"...\\\",\\n  \\\"website\\\": \\\"verified URL or null\\\",\\n  \\\"verification\\\": {\\n    \\\"confidence\\\": \\\"high\\\" | \\\"medium\\\" | \\\"low\\\",\\n    \\\"signals_matched\\\": [\\\"name\\\" | \\\"location\\\" | \\\"email_domain\\\"],\\n    \\\"notes\\\": \\\"one-sentence reason for the confidence level\\\"\\n  },\\n  \\\"description\\\": \\\"150–200 word paragraph OR \\\\\\\"INSUFFICIENT_CONTENT\\\\\\\"\\\",\\n  \\\"facilities\\\": [ /* pick zero or more from Facilities list */ ],\\n  \\\"activities\\\": [ /* pick zero or more from Activities list */ ]\\n}\\n\\nFacilities (closed list — exact spelling):\\n[\\\"Changing Room\\\",\\\"Free Weights Area\\\",\\\"Cardio Area\\\",\\\"Resistance Machines\\\",\\n \\\"Functional Area\\\",\\\"Studio Room\\\",\\\"Indoor Pool\\\",\\\"Outdoor Pool\\\",\\n \\\"Children's Pool\\\",\\\"Hydrotherapy Pool\\\",\\\"Sauna\\\",\\\"Steam Room\\\",\\\"Spa\\\",\\n \\\"Beauty Spa\\\",\\\"Physiotherapy Room\\\",\\\"Tennis Court\\\",\\\"Squash Court\\\",\\n \\\"Basketball Court\\\",\\\"Padel Court\\\",\\\"Climbing Wall\\\",\\\"Golf Course\\\",\\n \\\"Bike Fit Studio\\\",\\\"Bike Storage\\\",\\\"Crèche\\\",\\\"Meeting Room\\\",\\n \\\"Business Lounge\\\",\\\"Adult Only Area\\\",\\\"Café\\\",\\\"Restaurant\\\",\\\"Snack Bar\\\",\\n \\\"Outdoor Training Area\\\",\\\"Treatment Rooms\\\"]\\n\\nActivities (closed list — exact spelling):\\n[\\\"Free Weights\\\",\\\"Cardio\\\",\\\"Functional Training\\\",\\\"Resistance Training\\\",\\n \\\"Yoga\\\",\\\"Pilates\\\",\\\"Reformer Pilates\\\",\\\"Spin\\\",\\\"Boxing\\\",\\\"CrossFit\\\",\\\"HIIT\\\",\\n \\\"TRX\\\",\\\"Barre\\\",\\\"Personal Training\\\",\\\"Group Classes\\\",\\\"Tennis\\\",\\\"Squash\\\",\\n \\\"Basketball\\\",\\\"Padel\\\",\\\"Climbing\\\",\\\"Golf\\\",\\\"Swimming\\\",\\\"Mobility\\\",\\n \\\"Stretching\\\"]\\n\\ndescription rules: neutral travel-guide tone, one paragraph, 150–200\\nwords. Cover in order: (a) venue type & core offering, (b) training\\nstyles & equipment, (c) facilities beyond the gym floor. Optionally\\nclose with one distinctive feature. Exclude pricing, hours, addresses,\\nphone numbers, contact names, and superlatives (\\\"world-class\\\",\\n\\\"state-of-the-art\\\", \\\"premier\\\", \\\"elite\\\", \\\"ultimate\\\", \\\"best-in-class\\\").\\nIf the website content is sparse, write a shorter honest paragraph.\"\n        }\n      ]\n    }\n  ]\n}"
+      },
+      "metadata": {
+        "designer": { "x": 300, "y": 0, "name": "Anthropic — verify + describe" },
+        "restore": {
+          "expect": {
+            "method":   { "label": "POST",              "mode": "chose" },
+            "bodyType": { "label": "Raw",               "mode": "chose" },
+            "contentType": { "label": "JSON (application/json)" }
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "module": "util:SetVariable2",
+      "version": 1,
+      "parameters": {
+        "scope": "roundtrip"
+      },
+      "mapper": {
+        "name": "result",
+        "value": "{{parseJSON(last(2.content).text)}}"
+      },
+      "metadata": {
+        "designer": { "x": 600, "y": 0, "name": "Parse model JSON" },
+        "restore": {}
+      }
+    },
+    {
+      "id": 4,
+      "module": "clickup:createATask",
+      "version": 1,
+      "parameters": {
+        "__IMTCONN__": "__TODO_CLICKUP_CONNECTION_ID__"
+      },
+      "mapper": {
+        "team":   "__TODO_CLICKUP_TEAM_ID__",
+        "space":  "__TODO_CLICKUP_SPACE_ID__",
+        "folder": "__TODO_CLICKUP_FOLDER_ID__",
+        "list":   "__TODO_CLICKUP_LIST_ID__",
+        "name": "{{if(3.result.verification.confidence = \"low\"; \"[REVIEW] \"; \"\")}}{{3.result.business_name}}",
+        "description": "## About\n{{3.result.description}}\n\n## Website\n{{3.result.website}}\n\n## Facilities\n{{join(3.result.facilities; \", \")}}\n\n## Activities\n{{join(3.result.activities; \", \")}}\n\n## Verification\nConfidence: **{{3.result.verification.confidence}}**\nSignals matched: {{join(3.result.verification.signals_matched; \", \")}}\nNotes: {{3.result.verification.notes}}\n\n---\nSource PDF: {{1.pdf_filename}}\nFrom: {{1.sender_email}}\nSubject: {{1.subject}}",
+        "markdown_content": true
+      },
+      "metadata": {
+        "designer": { "x": 900, "y": 0, "name": "ClickUp — create task" },
+        "restore": {}
+      }
+    }
+  ],
+  "metadata": {
+    "instant": true,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "slots": null,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": { "orphans": [] },
+    "zone": "eu1.make.com",
+    "notes": []
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "name": "BODDY Intake: .tech trigger",
+  "flow": [
+    {
+      "id": 1,
+      "module": "google-email:TriggerWatchEmails",
+      "version": 2,
+      "parameters": {
+        "__IMTCONN__": "__TODO_GMAIL_TECH_CONNECTION_ID__",
+        "folder": "Signed",
+        "criteria": {
+          "query": "has:attachment filename:pdf"
+        },
+        "markSeen": true,
+        "maxResults": 10
+      },
+      "mapper": {},
+      "metadata": {
+        "designer": { "x": 0, "y": 0, "name": "Gmail — .tech / Signed" },
+        "restore": {
+          "parameters": {
+            "__IMTCONN__": { "label": "partnerships@…tech" },
+            "folder":      { "label": "Signed" }
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "module": "builtin:BasicIterator",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "array": "{{1.attachments}}"
+      },
+      "metadata": {
+        "designer": { "x": 300, "y": 0, "name": "Iterate attachments" },
+        "restore": {}
+      }
+    },
+    {
+      "id": 3,
+      "module": "builtin:BasicRouter",
+      "version": 1,
+      "mapper": null,
+      "metadata": {
+        "designer": { "x": 600, "y": 0, "name": "Only PDFs" }
+      },
+      "filter": {
+        "name": "Only PDF attachments",
+        "conditions": [
+          [
+            {
+              "a": "{{lower(2.fileName)}}",
+              "b": ".pdf",
+              "o": "text:endswith"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "module": "http:ActionSendData",
+      "version": 3,
+      "parameters": {
+        "handleErrors": false,
+        "useNewZLibDeCompress": true
+      },
+      "mapper": {
+        "url": "__TODO_WORKER_WEBHOOK_URL__",
+        "method": "post",
+        "headers": [
+          { "name": "content-type", "value": "application/json" }
+        ],
+        "qs": [],
+        "bodyType": "raw",
+        "parseResponse": true,
+        "contentType": "application/json",
+        "data": "{\n  \"pdf_base64\":   \"{{toString(2.data)}}\",\n  \"pdf_filename\": \"{{2.fileName}}\",\n  \"sender_email\": \"{{1.from.address}}\",\n  \"subject\":      \"{{1.subject}}\"\n}"
+      },
+      "metadata": {
+        "designer": { "x": 900, "y": 0, "name": "POST → Worker webhook" },
+        "restore": {
+          "expect": {
+            "method":      { "label": "POST",              "mode": "chose" },
+            "bodyType":    { "label": "Raw",               "mode": "chose" },
+            "contentType": { "label": "JSON (application/json)" }
+          }
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "instant": false,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "slots": null,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": { "orphans": [] },
+    "zone": "eu1.make.com",
+    "notes": []
+  }
+}
